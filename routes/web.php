@@ -15,14 +15,14 @@ Route::resource('peserta', PesertaController::class)->parameters([
 
 // CRUD Kelas
 Route::resource('kelas', KelasController::class)->parameters([
-  'kelas' => 'kelas', // optional, tapi biar konsisten
+    'kelas' => 'kelas', // optional, tapi biar konsisten
 ]);
 
 
 // Pendaftaran peserta ke kelas (buat relasi many-to-many)
-Route::resource('pendaftaran-kelas', PendaftaranKelasController::class)->parameters([
-    'pendaftaran-kelas' => 'pendaftaranKelas',
-]);
+Route::resource('pendaftaran-kelas', PendaftaranKelasController::class)
+    ->parameters(['pendaftaran-kelas' => 'kelas']);
+
 
 // Simpan pendaftaran peserta ke kelas
 Route::post('pendaftaran-kelas', [PendaftaranKelasController::class, 'store'])
@@ -44,7 +44,11 @@ Route::get('kelas/{kelas}/peserta', [PendaftaranKelasController::class, 'daftarP
 Route::delete('/kelas/{kelas}/peserta/{peserta}', [KelasController::class, 'hapusPeserta'])
     ->name('kelas.peserta.hapus');
 
-    Route::post('/pendaftaran-kelas/store-multi', 
-    [PendaftaranKelasController::class, 'storeMulti'])
+Route::post(
+    '/pendaftaran-kelas/store-multi',
+    [PendaftaranKelasController::class, 'storeMulti']
+)
     ->name('pendaftaran-kelas.store-multi');
 
+Route::get('pendaftaran-kelas/kelas/{kelas}', [PendaftaranKelasController::class, 'show'])
+    ->name('pendaftaran-kelas.show');

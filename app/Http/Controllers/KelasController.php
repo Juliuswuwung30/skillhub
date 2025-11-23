@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Kelas;
 use Illuminate\Http\Request;
 use App\Models\Peserta;
+use Illuminate\Validation\Rule;
 
 class KelasController extends Controller
 {
@@ -38,13 +39,10 @@ class KelasController extends Controller
     {
         $dataValid = $request->validate([
             'judul'           => 'required|string|max:255',
-            'kode'            => 'required|string|max:50',
+            'kode'            => 'required|string|max:50|unique:kelas,kode',
             'pengajar'        => 'required|string|max:255',
-            'deskripsi'       => 'nullable|string',
-            'tingkat'         => 'nullable|string|max:100',
-            'kategori'        => 'nullable|string|max:100',
-            'tanggal_mulai'   => 'nullable|date',
-            'tanggal_selesai' => 'nullable|date',
+            'tanggal_mulai'   => 'required|date',
+            'tanggal_selesai' => 'required|date|after_or_equal:tanggal_mulai',
             'kapasitas'       => 'nullable|integer|min:1',
         ]);
 
@@ -52,7 +50,7 @@ class KelasController extends Controller
 
         return redirect()
             ->route('kelas.index')
-            ->with('success', 'Kelas berhasil ditambahkan.');
+            ->with('success', 'Kelas berhasil dibuat.');
     }
 
     /**
@@ -82,17 +80,20 @@ class KelasController extends Controller
     /**
      * Update data kelas.
      */
+
     public function update(Request $request, Kelas $kelas)
     {
         $dataValid = $request->validate([
             'judul'           => 'required|string|max:255',
-            'kode'            => 'required|string|max:50',
+            'kode'            => [
+                'required',
+                'string',
+                'max:50',
+                Rule::unique('kelas', 'kode')->ignore($kelas->id),
+            ],
             'pengajar'        => 'required|string|max:255',
-            'deskripsi'       => 'nullable|string',
-            'tingkat'         => 'nullable|string|max:100',
-            'kategori'        => 'nullable|string|max:100',
-            'tanggal_mulai'   => 'nullable|date',
-            'tanggal_selesai' => 'nullable|date',
+            'tanggal_mulai'   => 'required|date',
+            'tanggal_selesai' => 'required|date|after_or_equal:tanggal_mulai',
             'kapasitas'       => 'nullable|integer|min:1',
         ]);
 
@@ -102,6 +103,7 @@ class KelasController extends Controller
             ->route('kelas.index')
             ->with('success', 'Data kelas berhasil diperbarui.');
     }
+
 
     /**
      * Hapus kelas.

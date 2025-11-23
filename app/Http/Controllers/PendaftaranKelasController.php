@@ -52,39 +52,52 @@ class PendaftaranKelasController extends Controller
      */
     public function store(Request $request)
     {
-        $dataValid = $request->validate([
+        $validated = $request->validate([
             'peserta_id' => 'required|exists:peserta,id',
-            'kelas_id'   => 'required|exists:kelas,id',
-            'catatan'    => 'nullable|string|max:500',
+            'kelas_id' => 'required|exists:kelas,id',
         ]);
 
-        // Cek kalau peserta sudah terdaftar di kelas yang sama
-        $sudahAda = PendaftaranKelas::where('peserta_id', $dataValid['peserta_id'])
-            ->where('kelas_id', $dataValid['kelas_id'])
-            ->exists();
+        $kelas = Kelas::findOrFail($validated['kelas_id']);
+        $peserta = Peserta::findOrFail($validated['peserta_id']);
 
-        if ($sudahAda) {
-            return back()
-                ->withInput()
-                ->with('error', 'Peserta sudah terdaftar di kelas ini.');
+        $today = now();
+
+        // ❌ Jika kelas belum dibuka
+        if ($kelas->tanggal_mulai && $today->lt($kelas->tanggal_mulai)) {
+            return back()->with('error', 'Kelas belum dibuka!');
         }
 
-        PendaftaranKelas::create($dataValid);
+        // ❌ Jika kelas sudah ditutup
+        if ($kelas->tanggal_selesai && $today->gt($kelas->tanggal_selesai)) {
+            return back()->with('error', 'Kelas sudah ditutup!');
+        }
 
-        return redirect()
-            ->route('kelas.show', $dataValid['kelas_id'])
-            ->with('success', 'Peserta berhasil didaftarkan ke kelas.');
+        // ❌ Jika kelas penuh
+        if (!is_null($kelas->kapasitas) && $kelas->peserta()->count() >= $kelas->kapasitas) {
+            return back()->with('error', 'Kelas sudah penuh!');
+        }
+
+        // ❌ Jika sudah terdaftar
+        if ($kelas->peserta()->where('peserta_id', $peserta->id)->exists()) {
+            return back()->with('error', 'Peserta sudah terdaftar di kelas ini.');
+        }
+
+        // 💾 Simpan pendaftaran
+        $kelas->peserta()->attach($peserta->id);
+
+        return back()->with('success', 'Berhasil mendaftar kelas.');
     }
+
 
     /**
      * (Opsional) Detail satu pendaftaran.
      */
-    public function show(PendaftaranKelas $pendaftaranKelas)
+    public function show(Kelas $kelas)
     {
-        $pendaftaranKelas->load(['peserta', 'kelas']);
+        $kelas->load('peserta'); // eager load relasi
 
         return view('pendaftaran-kelas.show', [
-            'pendaftaran' => $pendaftaranKelas,
+            'kelas' => $kelas,
         ]);
     }
 
@@ -137,16 +150,24 @@ class PendaftaranKelasController extends Controller
      * Hapus pendaftaran kelas (batalkan peserta dari kelas).
      * Dipakai kalau hapus dari halaman detail kelas atau dari daftar pendaftaran.
      */
-    public function destroy(PendaftaranKelas $pendaftaranKelas)
+    public function destroy($id)
     {
-        $kelasId = $pendaftaranKelas->kelas_id;
+        $pendaftaran = PendaftaranKelas::find($id);
 
-        $pendaftaranKelas->delete();
+        // Jika tidak ditemukan → test expect 404
+        if (!$pendaftaran) {
+            abort(404);
+        }
 
-        return redirect()
-            ->route('kelas.show', $kelasId)
-            ->with('success', 'Peserta berhasil dihapus dari kelas.');
+        // Simpan dulu kelas_id sebelum dihapus
+        $kelasId = $pendaftaran->kelas_id;
+
+        $pendaftaran->delete();
+
+        return redirect()->route('kelas.show', $kelasId)
+            ->with('success', 'Pendaftaran berhasil dihapus.');
     }
+
 
     public function storeMulti(Request $request)
     {
@@ -167,5 +188,30 @@ class PendaftaranKelasController extends Controller
         return redirect()
             ->route('peserta.show', $request->peserta_id)
             ->with('success', 'Kelas berhasil diambil!');
+    }
+
+    public function daftarPesertaKelas(Kelas $kelas)
+    {
+        $kelas->load('peserta');
+
+        return view('kelas.show', [
+            'kelas'         => $kelas,
+            'daftarPeserta' => $kelas->peserta,
+        ]);
+    }
+
+    public function daftarKelasPeserta(Peserta $peserta)
+    {
+        $peserta->load('kelas');
+
+        $daftarKelas = Kelas::withCount('peserta')
+            ->orderBy('tanggal_mulai')
+            ->get();
+
+        return view('peserta.show', [
+            'peserta'      => $peserta,
+            'kelasDiikuti' => $peserta->kelas,
+            'daftarKelas'  => $daftarKelas,
+        ]);
     }
 }
